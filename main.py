@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
 import mysql.connector
+import requests
 from sklearn.metrics.pairwise import cosine_similarity
 
 # Global variables for model
@@ -146,8 +147,7 @@ def recommend(user_id: str):
         if df_places.empty:
             return {"error": "Attractions database is empty."}
             
-        # Filter out header row if exists
-        df_places = df_places[df_places['COL 1'] != 'Attraction_ID']
+        # Header row removed from DB, so no need to filter
 
         target_user_id = user_id
         print(f"DEBUG: Request user_id='{user_id}'")
@@ -183,37 +183,94 @@ def recommend(user_id: str):
             "6": "การงาน",
             "7": "การเงิน",
             "8": "ความรัก",
-            "9": "การเงิน",   # สุขภาพ -> การเงิน (หรือตามที่ผู้ใช้กำหนด)
-            "10": "การเงิน",  # สิริมงคล -> การเงิน (หรือตามที่ผู้ใช้กำหนด)
-            "11": "การเงิน"   # แก้ชง -> การเงิน
+            "9": "การเงิน",
+            "10": "การเงิน",
+            "11": "การเงิน"
         }
 
+        # Google Maps API Key (Hardcoded for demo, ideally from env)
+        primary_api_key = "AIzaSyCui4h5-VBB9WmGWP6u8M0il3g7iKqJ56E"
+        
         sorted_recs = sorted(recommended_scores.items(), key=lambda x: x[1], reverse=True)[:5]
         results = []
         for place_id, score in sorted_recs:
-            # Convert place_id to string to match DB column 'COL 1' which is string
             str_place_id = str(place_id)
-            place_info = df_places[df_places['COL 1'] == str_place_id]
+            place_info = df_places[df_places['attraction_id'] == str_place_id]
             
             if not place_info.empty:
                 row = place_info.iloc[0]
                 
-                # Get raw values
-                raw_type = str(row['COL 3']) if 'COL 3' in row else "Unknown"
-                raw_category = str(row['COL 4']) if 'COL 4' in row else "Unknown"
+                raw_type = str(row['type_id']) if 'type_id' in row else "Unknown"
+                raw_category = str(row['sect_id']) if 'sect_id' in row else "Unknown" # Using sect_id as category based on previous COL 4 usage
                 
-                # Map to Thai names (default to raw value if not found)
                 type_name = type_mapping.get(raw_type, raw_type)
                 category_name = category_mapping.get(raw_category, raw_category)
-                
+                place_name = row['attraction_name'] if 'attraction_name' in row else "Unknown"
+
+                # 0. Check Database for Image URL
+                image_url = row['image_url'] if 'image_url' in row and row['image_url'] else ""
+
+                # 1. Fallback to Specific Hardcoded Map if DB is empty
+                if not image_url:
+                    specific_image_map = {
+                        "ศาลเจ้าพ่อหลักเมือง": "https://images.unsplash.com/photo-1544211320-9a3d4f828734?q=80&w=800",
+                        "วัดสระสี่เหลี่ยม": "https://images.unsplash.com/photo-1563603417646-77869680c2f8?q=80&w=800",
+                        "วัดห้วยตะโก": "https://images.unsplash.com/photo-1599725427295-5847fa279543?q=80&w=800",
+                        "วัดไทร": "https://images.unsplash.com/photo-1507646903823-74b21e721a32?q=80&w=800",
+                        "วัดบ่อตะกั่วพุทธาราม": "https://images.unsplash.com/photo-1528181304800-259b0884852d?q=80&w=800"
+                    }
+                    
+                    for key_name, url in specific_image_map.items():
+                        if key_name in place_name:
+                            image_url = url
+                            break
+
+                # 2. If not in map, try Google API (will fail without billing)
+                if not image_url:
+                    try:
+                        search_url = f"https://maps.googleapis.com/maps/api/place/textsearch/json?query={place_name}&key={primary_api_key}"
+                        response = requests.get(search_url)
+                        if response.status_code == 200:
+                            data = response.json()
+                            if "error_message" in data:
+                                pass # Silently fail
+                            
+                            if data.get("results"):
+                                photos = data["results"][0].get("photos")
+                                if photos:
+                                    photo_reference = photos[0]["photo_reference"]
+                                    image_url = f"https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference={photo_reference}&key={primary_api_key}"
+                    except Exception:
+                        pass
+
+                # 3. Fallback to Generic Category Images if all else fails
+                if not image_url:
+                    # Generic High Quality Images by Type
+                    if "ศาลเจ้า" in type_name or "ศาลเจ้า" in place_name:
+                         image_url = "https://images.unsplash.com/photo-1595180492817-291771120428?q=80&w=800" # Shrine
+                    elif "โบราณสถาน" in type_name:
+                         image_url = "https://images.unsplash.com/photo-1582234032483-c287042531cd?q=80&w=800" # Ancient
+                    else:
+                         # Default Temple Rotation
+                         fallback_images = [
+                            "https://images.unsplash.com/photo-1599725427295-5847fa279543?q=80&w=800",
+                            "https://images.unsplash.com/photo-1563603417646-77869680c2f8?q=80&w=800",
+                            "https://images.unsplash.com/photo-1528181304800-259b0884852d?q=80&w=800"
+                        ]
+                         img_index = int(str_place_id) % len(fallback_images)
+                         image_url = fallback_images[img_index]
+
                 results.append({
                     "id": str_place_id,
-                    "name": row['COL 2'] if 'COL 2' in row else "Unknown",
+                    "name": place_name,
                     "type": type_name,
                     "category": category_name,
-                    "lat": float(row['COL 10']) if ('COL 10' in row and row['COL 10'] and str(row['COL 10']).upper() != 'LAT') else 0.0,
-                    "lng": float(row['COL 11']) if ('COL 11' in row and row['COL 11'] and str(row['COL 11']).upper() != 'LONG') else 0.0,
-                    "score": round(score, 2)
+                    "lat": float(row['latitude']) if ('latitude' in row and row['latitude'] and str(row['latitude']).upper() != 'LAT') else 0.0,
+                    "lng": float(row['longitude']) if ('longitude' in row and row['longitude'] and str(row['longitude']).upper() != 'LONG') else 0.0,
+                    "score": round(score, 2),
+                    "image": image_url,
+                    "sacred_object": row['sacred_object'] if 'sacred_object' in row else "-",
+                    "offerings": row['offerings'] if 'offerings' in row else "-"
                 })
 
         return {"user_id": user_id, "matched_id": target_user_id, "recommendations": results, "message": f"Showing recommendations for User {target_user_id}" if user_id != target_user_id else ""}

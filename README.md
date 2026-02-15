@@ -9,6 +9,25 @@
 - **Database Integration**: เชื่อมต่อกับ MySQL Database (`faith_tourism_db`)
 - **RESTful API**: พัฒนาด้วย FastAPI
 
+## System Architecture 🏗️
+
+```mermaid
+graph TD
+    User[User / Client] -->|HTTP Request| Frontend[Frontend Application]
+    Frontend -->|API Calls (JSON)| Backend[Backend API (FastAPI)]
+    
+    subgraph "Backend Server"
+        Backend -->|Auth & User Data| DB[(MySQL Database)]
+        Backend -->|Load Model| Model[UBCF Model (.pkl)]
+        Backend -->|Process Data| Logic[Recommendation Logic]
+        Logic -->|Read| Model
+    end
+    
+    DB -->|Attraction Data| Logic
+    Logic -->|Personalized List| Backend
+    Backend -->|JSON Response| Frontend
+```
+
 ## Tech Stack 🛠️
 
 - **Language**: Python 3.8+

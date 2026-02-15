@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Compass, MapPin, Star, Sparkles, Loader2, Heart, Coins, Briefcase, ArrowRight, User, Calendar, Lock, LogIn, CheckCircle2 } from 'lucide-react';
+import { Compass, MapPin, Star, Sparkles, Loader2, Heart, Coins, Briefcase, ArrowRight, User, Calendar, Lock, LogIn, CheckCircle2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import workBg from './assets/work_bg.png';
 import moneyBg from './assets/money_bg.png';
 import loveBg from './assets/love_bg.png';
+import Map from './components/Map';
 
 interface Recommendation {
   id: string;
@@ -14,6 +15,9 @@ interface Recommendation {
   lat: number;
   lng: number;
   score: number;
+  image?: string;
+  sacred_object?: string;
+  offerings?: string;
 }
 
 type Step = 'selection' | 'register' | 'login' | 'results';
@@ -83,6 +87,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<Recommendation | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -419,43 +424,64 @@ function App() {
                   whileHover={{ y: -10 }}
                   className="glass-card rounded-[3rem] p-9 hover:border-faith-gold/50 transition-all group border border-white/10 shadow-2xl relative overflow-hidden"
                 >
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-faith-gold/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-faith-gold/20 transition-colors" />
+                  {/* Background Image if available */}
+                  {item.image && (
+                    <>
+                      <div
+                        className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110"
+                        style={{ backgroundImage: `url(${item.image})` }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/70 to-black/90" />
+                    </>
+                  )}
+
+                  {!item.image && (
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-faith-gold/5 blur-3xl rounded-full -mr-16 -mt-16 group-hover:bg-faith-gold/20 transition-colors" />
+                  )}
 
                   <div className="flex justify-between items-start mb-10 relative z-10">
-                    <div className="p-4 bg-black/40 rounded-[1.25rem] group-hover:bg-faith-gold transition-colors border border-white/10">
+                    <div className="p-4 bg-black/40 rounded-[1.25rem] group-hover:bg-faith-gold transition-colors border border-white/10 backdrop-blur-md">
                       <MapPin className="text-faith-gold group-hover:text-[#1A0404]" size={28} />
                     </div>
                     <div className="flex flex-col items-end">
-                      <div className="flex items-center gap-2 px-4 py-2 bg-black/40 rounded-full border border-white/10 mb-2">
+                      <div className="flex items-center gap-2 px-4 py-2 bg-black/40 rounded-full border border-white/10 mb-2 backdrop-blur-md">
                         <Star className="text-amber-500 fill-amber-500 shadow-amber-500/50" size={16} />
                         <span className="text-lg font-black tracking-tighter text-faith-gold leading-none">{item.score.toFixed(2)}</span>
                       </div>
-                      <span className="text-[9px] font-black uppercase tracking-widest text-gray-600">Sync Score</span>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Sync Score</span>
                     </div>
                   </div>
 
-                  <h3 className="text-3xl font-black mb-4 group-hover:text-faith-gold transition-colors leading-[1.1] relative z-10">{item.name}</h3>
+                  <h3 className="text-3xl font-black mb-4 group-hover:text-faith-gold transition-colors leading-[1.1] relative z-10 drop-shadow-md">{item.name}</h3>
                   <div className="flex flex-wrap gap-2 mb-10 relative z-10">
-                    <span className="px-4 py-1.5 bg-black/40 rounded-full text-[10px] uppercase font-black tracking-widest text-gray-400 border border-white/10">{item.type}</span>
-                    <span className="px-5 py-2 bg-faith-gold/5 rounded-full text-[10px] uppercase font-black tracking-widest text-faith-gold border border-faith-gold/10">{item.category}</span>
+                    <span className="px-4 py-1.5 bg-black/40 rounded-full text-[10px] uppercase font-black tracking-widest text-gray-300 border border-white/10 backdrop-blur-md">{item.type}</span>
+                    <span className="px-5 py-2 bg-faith-gold/20 rounded-full text-[10px] uppercase font-black tracking-widest text-faith-gold border border-faith-gold/20 backdrop-blur-md">{item.category}</span>
                   </div>
 
                   <div className="pt-10 border-t border-white/10 flex items-center justify-between relative z-10">
                     <div className="flex flex-col">
-                      <span className="text-[9px] uppercase font-black text-gray-600 tracking-[.3em] mb-2 px-1">Location Data</span>
-                      <div className="px-3 py-1.5 bg-black/20 rounded-lg border border-white/5 font-mono text-[11px] text-gray-500 tracking-tighter">
+                      <span className="text-[9px] uppercase font-black text-gray-400 tracking-[.3em] mb-2 px-1">Location Data</span>
+                      <div className="px-3 py-1.5 bg-black/40 rounded-lg border border-white/5 font-mono text-[11px] text-gray-400 tracking-tighter backdrop-blur-md">
                         {item.lat.toFixed(5)} / {item.lng.toFixed(5)}
                       </div>
                     </div>
                     <motion.button
                       whileHover={{ x: 5 }}
-                      className="bg-faith-gold/10 hover:bg-faith-gold p-4 rounded-[1.5rem] border border-faith-gold/30 hover:border-faith-gold transition-all"
+                      onClick={() => setSelectedPlace(item)}
+                      className="bg-faith-gold/10 hover:bg-faith-gold p-4 rounded-[1.5rem] border border-faith-gold/30 hover:border-faith-gold transition-all backdrop-blur-md"
                     >
                       <ArrowRight size={24} className="text-faith-gold group-hover:text-[#1A0404]" />
                     </motion.button>
                   </div>
                 </motion.div>
               ))}
+            </div>
+
+            <div className="mt-12 mb-20 px-6">
+              <h3 className="text-3xl font-black mb-6 gold-gradient-text uppercase tracking-tight">Map Overview</h3>
+              <div className="glass-card p-2 rounded-[2rem] border border-white/10 shadow-2xl">
+                <Map recommendations={recommendations} />
+              </div>
             </div>
 
             <motion.div
@@ -472,6 +498,111 @@ function App() {
                 <span className="w-1.5 h-1.5 bg-faith-gold rounded-full" />
                 <span className="w-24 h-[1px] bg-faith-gold my-auto" />
                 <span className="w-1.5 h-1.5 bg-faith-gold rounded-full" />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Detail Modal */}
+      <AnimatePresence>
+        {selectedPlace && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setSelectedPlace(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-[#1A0404] border border-faith-gold/30 rounded-[2rem] max-w-2xl w-full max-h-[90vh] overflow-y-auto relative shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setSelectedPlace(null)}
+                className="absolute top-4 right-4 p-2 bg-black/40 rounded-full text-gray-400 hover:text-white transition-colors z-10"
+              >
+                <X size={24} />
+              </button>
+
+              <div className="relative h-64 md:h-80">
+                {selectedPlace.image ? (
+                  <img src={selectedPlace.image} alt={selectedPlace.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-faith-gold/10 flex items-center justify-center">
+                    <span className="text-faith-gold/30 font-black text-4xl">NO IMAGE</span>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#1A0404] via-transparent to-transparent" />
+                <div className="absolute bottom-6 left-6 right-6">
+                  <div className="flex gap-2 mb-2">
+                    <span className="px-3 py-1 bg-faith-gold/20 text-faith-gold text-xs font-bold rounded-full border border-faith-gold/20 uppercase tracking-wider backdrop-blur-md">
+                      {selectedPlace.type}
+                    </span>
+                    <span className="px-3 py-1 bg-white/10 text-white text-xs font-bold rounded-full border border-white/10 uppercase tracking-wider backdrop-blur-md">
+                      {selectedPlace.category}
+                    </span>
+                  </div>
+                  <h2 className="text-4xl md:text-5xl font-black text-white leading-none drop-shadow-lg">{selectedPlace.name}</h2>
+                </div>
+              </div>
+
+              <div className="p-8 space-y-8">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                    <div className="flex items-center gap-2 mb-2 text-faith-gold">
+                      <Star size={18} />
+                      <span className="font-bold text-xs uppercase tracking-widest">Score</span>
+                    </div>
+                    <span className="text-2xl font-black text-white">{selectedPlace.score.toFixed(2)}</span>
+                  </div>
+                  <div className="bg-white/5 p-4 rounded-2xl border border-white/10">
+                    <div className="flex items-center gap-2 mb-2 text-faith-gold">
+                      <Compass size={18} />
+                      <span className="font-bold text-xs uppercase tracking-widest">Location</span>
+                    </div>
+                    <span className="text-sm font-mono text-gray-400">{selectedPlace.lat.toFixed(4)}, {selectedPlace.lng.toFixed(4)}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-faith-gold/10 rounded-xl text-faith-gold shrink-0">
+                      <Sparkles size={24} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-white mb-1">สิ่งศักดิ์สิทธิ์ (Sacred Object)</h3>
+                      <p className="text-gray-400 leading-relaxed">{selectedPlace.sacred_object || "ไม่ระบุข้อมูล"}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-faith-gold/10 rounded-xl text-faith-gold shrink-0">
+                      <Heart size={24} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-white mb-1">ของไหว้ (Offerings)</h3>
+                      <p className="text-gray-400 leading-relaxed">{selectedPlace.offerings || "ไม่ระบุข้อมูล"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="w-full h-64 rounded-2xl overflow-hidden mb-4 border border-faith-gold/30">
+                  <Map recommendations={[selectedPlace]} className="h-full" />
+                </div>
+
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${selectedPlace.lat},${selectedPlace.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full py-4 bg-faith-gold text-[#1A0404] font-black rounded-xl hover:bg-amber-400 transition-colors"
+                >
+                  <MapPin size={20} />
+                  <span>OPEN IN GOOGLE MAPS</span>
+                </a>
               </div>
             </motion.div>
           </motion.div>
