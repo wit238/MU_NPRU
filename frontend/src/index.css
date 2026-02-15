@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  --color-faith-gold: #D4AF37;
+  --color-faith-cream: #F5F5DC;
+  --color-faith-dark: #1A1A1A;
+  --color-faith-burgundy: #4A0E0E;
+  --color-faith-accent: #8B0000;
+  --font-outfit: "Outfit", sans-serif;
+}
+
+:root {
+  background-color: #2D0707;
+  color: #fff;
+}
+
+body {
+  font-family: 'Outfit', sans-serif;
+  overflow-x: hidden;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gold-gradient-text {
+  background: linear-gradient(to right, #D4AF37, #F5F5DC, #D4AF37);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
