@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { Compass, MapPin, Star, Sparkles, Loader2, Heart, Coins, Briefcase, ArrowRight, User, Calendar, Lock, LogIn, CheckCircle2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,10 +22,95 @@ interface Recommendation {
 
 type Step = 'selection' | 'register' | 'login' | 'results';
 
+// Mystical Mandala Component
+const MysticalMandala = () => {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden opacity-20">
+      {/* Outer Ring */}
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ duration: 120, repeat: Infinity, ease: "linear" }}
+        className="absolute w-[800px] h-[800px] border border-faith-gold/30 rounded-full flex items-center justify-center"
+      >
+        <div className="absolute w-[90%] h-[90%] border border-faith-gold/20 rounded-full border-dashed" />
+        {[...Array(12)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute w-4 h-4 bg-faith-gold/40 rounded-full"
+            style={{
+              transform: `rotate(${i * 30}deg) translate(400px)`,
+            }}
+          />
+        ))}
+      </motion.div>
+
+      {/* Middle Ring */}
+      <motion.div
+        animate={{ rotate: -360 }}
+        transition={{ duration: 80, repeat: Infinity, ease: "linear" }}
+        className="absolute w-[600px] h-[600px] border border-faith-gold/30 rounded-full flex items-center justify-center"
+      >
+        {[...Array(8)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute w-32 h-32 border border-faith-gold/20 rounded-full"
+            style={{
+              transform: `rotate(${i * 45}deg) translate(150px)`,
+            }}
+          />
+        ))}
+      </motion.div>
+
+      {/* Inner Ring */}
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
+        className="absolute w-[400px] h-[400px] border border-faith-gold/30 rounded-full flex items-center justify-center opacity-50"
+      >
+        <div className="w-full h-full border-4 border-faith-gold/10 rounded-full" />
+        {[...Array(6)].map((_, i) => (
+          <Star
+            key={i}
+            size={24}
+            className="absolute text-faith-gold/40"
+            style={{
+              transform: `rotate(${i * 60}deg) translate(200px) rotate(-${i * 60}deg)`,
+            }}
+          />
+        ))}
+      </motion.div>
+    </div>
+  );
+};
+
 // Animated Background Component
-const DivineBackground = () => {
+const DivineBackground = ({ currentBgIndex, backgrounds }: { currentBgIndex: number, backgrounds: string[] }) => {
+  const particles = useMemo(() => {
+    return [...Array(30)].map(() => ({
+      left: Math.random() * 100 + "%",
+      top: (Math.random() * 50 + 50) + "%",
+      delay: Math.random() * 10,
+      duration: Math.random() * 8 + 8,
+      x: (Math.random() - 0.5) * 60
+    }));
+  }, []);
+
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10 bg-[#1A0404]">
+      {/* Background Image Carousel */}
+      <AnimatePresence mode='wait'>
+        <motion.div
+          key={currentBgIndex}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.3 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 1.5 }}
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${backgrounds[currentBgIndex]})` }}
+        />
+      </AnimatePresence>
+      <div className="absolute inset-0 bg-gradient-to-b from-[#1A0404] via-[#1A0404]/80 to-[#1A0404]" />
+
       {/* Moving Blobs */}
       <motion.div
         animate={{
@@ -49,43 +134,55 @@ const DivineBackground = () => {
       />
 
       {/* Divine Sparks (Floating Particles) */}
-      {[...Array(30)].map((_, i) => (
+      {particles.map((p, i) => (
         <motion.div
           key={i}
           initial={{
-            left: Math.random() * 100 + "%",
-            top: (Math.random() * 50 + 50) + "%",
+            left: p.left,
+            top: p.top,
             opacity: 0,
             scale: 0
           }}
           animate={{
             y: [0, -400],
-            x: [0, (Math.random() - 0.5) * 60],
+            x: [0, p.x],
             opacity: [0, 0.7, 0],
             scale: [0, 1, 0]
           }}
           transition={{
-            duration: Math.random() * 8 + 8,
+            duration: p.duration,
             repeat: Infinity,
-            delay: Math.random() * 10,
-            ease: "linear" // Linear is more efficient for large numbers of objects
+            delay: p.delay,
+            ease: "linear"
           }}
-          style={{ willChange: "transform, opacity" }} // Optimize for GPU
+          style={{ willChange: "transform, opacity" }}
           className="absolute w-1 h-1 bg-faith-gold rounded-full shadow-[0_0_12px_#D4AF37]"
         />
       ))}
+
+      <MysticalMandala />
     </div>
   );
 };
 
 function App() {
   const [step, setStep] = useState<Step>('selection');
-  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  // const [selectedInterests, setSelectedInterests] = useState<string[]>([]); // Removed selection logic
+  const [selectedInterests] = useState<string[]>([]); // Keep empty array for compatibility with results page
   const [userId, setUserId] = useState('');
   const [userName, setUserName] = useState('');
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [currentBg, setCurrentBg] = useState(0);
+  const backgrounds = [workBg, moneyBg, loveBg];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentBg((prev) => (prev + 1) % backgrounds.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
   const [rememberMe, setRememberMe] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Recommendation | null>(null);
 
@@ -125,7 +222,7 @@ function App() {
         setRecommendations(response.data.recommendations);
         setStep('results');
       }
-    } catch (err) {
+    } catch {
       setError('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ AI ได้');
     } finally {
       setLoading(false);
@@ -158,7 +255,7 @@ function App() {
       } else {
         setError(response.data.message);
       }
-    } catch (err) {
+    } catch {
       setError('เกิดข้อผิดพลาดในการลงทะเบียน');
     } finally {
       setLoading(false);
@@ -189,7 +286,7 @@ function App() {
       } else {
         setError(response.data.message);
       }
-    } catch (err) {
+    } catch {
       setError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
     } finally {
       setLoading(false);
@@ -198,64 +295,73 @@ function App() {
 
   return (
     <div className="min-h-screen text-white selection:bg-faith-gold/30 font-outfit overflow-x-hidden">
-      <DivineBackground />
+      <DivineBackground currentBgIndex={currentBg} backgrounds={backgrounds} />
 
       <AnimatePresence mode="wait">
         {step === 'selection' && (
           <motion.div
             key="selection"
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
-            className="max-w-4xl mx-auto px-6 py-20 text-center relative z-10"
+            className="max-w-7xl mx-auto px-6 py-10 relative z-10 min-h-screen flex flex-col"
           >
-            <div className="mb-12 flex justify-center items-center gap-2">
-              <motion.div animate={{ rotate: 360 }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }}>
-                <Sparkles className="text-faith-gold" size={18} />
-              </motion.div>
-              <span className="text-faith-gold font-black tracking-[0.3em] text-xs uppercase">Faith Nokonpathom</span>
-              <motion.div animate={{ rotate: -360 }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }}>
-                <Sparkles className="text-faith-gold" size={18} />
-              </motion.div>
-            </div>
-
-            <h1 className="text-4xl md:text-6xl font-black mb-6 gold-gradient-text tracking-tight">คุณต้องการขอพรด้านใด?</h1>
-            <p className="text-gray-400 mb-16 text-lg font-light">เลือกด้านที่คุณต้องการ เพื่อเปิดโอกาสให้ AI ค้นหาสิ่งที่ใช่สำหรับคุณ</p>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
-              {interests.map((item) => (
-                <motion.div
-                  key={item.id}
-                  whileHover={{ y: -15, scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setSelectedInterests(prev => prev.includes(item.id) ? prev.filter(i => i !== item.id) : [...prev, item.id])}
-                  className={`relative cursor-pointer rounded-[2.5rem] p-10 h-[380px] flex flex-col justify-end items-start overflow-hidden border-2 transition-all group ${selectedInterests.includes(item.id) ? 'border-faith-gold shadow-[0_0_50px_rgba(212,175,55,0.3)]' : 'border-white/10'
-                    } bg-black/40 backdrop-blur-md`}
-                >
-                  <div
-                    className="absolute inset-0 bg-cover bg-center opacity-40 group-hover:opacity-70 transition-opacity"
-                    style={{ backgroundImage: `url(${item.bg})` }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/80 opacity-60" />
-                  <div className="relative z-10 w-14 h-14 bg-black/40 rounded-2xl flex items-center justify-center mb-8 border border-white/20 shadow-inner">
-                    <span className="text-faith-gold">{item.icon}</span>
-                  </div>
-                  <h3 className="relative z-10 text-2xl font-black mb-3 uppercase tracking-wider">{item.label}</h3>
-                  <p className="relative z-10 text-[11px] text-left text-gray-300 leading-relaxed font-normal tracking-wide">{item.sub}</p>
-                </motion.div>
-              ))}
-            </div>
-
-            <div className="flex flex-col items-center gap-8">
+            {/* Top Left Navigation (Login removed) */}
+            {/* Top Right Navigation */}
+            <nav className="flex justify-end items-center gap-4 mb-10">
               <motion.button
                 whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                onClick={() => setStep('register')}
-                disabled={selectedInterests.length === 0}
-                className="bg-faith-gold hover:bg-amber-400 text-[#1A0404] px-16 py-5 rounded-full font-black transition-all disabled:opacity-30 flex items-center gap-3 text-xl shadow-2xl shadow-amber-600/20"
+                onClick={() => setStep('login')}
+                className="bg-white/10 text-white px-6 py-2.5 rounded-full font-bold border border-white/10 hover:bg-white/20 transition-all flex items-center gap-2 backdrop-blur-md"
               >
-                เข้าสู่ประสบการณ์สายมู <ArrowRight size={24} />
+                <LogIn size={18} /> เข้าสู่ระบบ
               </motion.button>
-              <button onClick={() => setStep('login')} className="text-faith-gold/60 hover:text-faith-gold font-bold flex items-center gap-2 transition-all border-b border-transparent hover:border-faith-gold/40 pb-1 text-sm tracking-widest uppercase">
-                <LogIn size={16} /> กลับมาอีกครั้ง (Log In)
-              </button>
+            </nav>
+
+            <div className="flex-1 flex flex-col justify-center items-center text-center relative z-20">
+              <div className="mb-8 flex justify-center items-center gap-3">
+                <motion.div animate={{ rotate: 360 }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }}>
+                  <Sparkles className="text-faith-gold" size={24} />
+                </motion.div>
+                <span className="text-faith-gold font-black tracking-[0.3em] text-sm uppercase">Faith Nokonpathom</span>
+                <motion.div animate={{ rotate: -360 }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }}>
+                  <Sparkles className="text-faith-gold" size={24} />
+                </motion.div>
+              </div>
+
+              <motion.h1
+                initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.2 }}
+                className="text-6xl md:text-9xl font-black mb-6 gold-gradient-text tracking-tight leading-tight drop-shadow-2xl"
+              >
+                เส้นทางแห่งศรัทธา
+                <br />
+                <span className="text-white text-4xl md:text-6xl stroke-text opacity-90 tracking-widest">นครปฐม</span>
+              </motion.h1>
+
+              <motion.h2
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+                className="text-lg md:text-2xl text-faith-gold font-bold mb-6 tracking-wide drop-shadow-md"
+              >
+                "ค้นพบเส้นทางสายมูที่ใช่ ในแบบที่เป็นคุณ"
+              </motion.h2>
+
+              <motion.p
+                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+                className="text-gray-300 max-w-3xl text-lg font-light leading-relaxed mb-12 drop-shadow-md mx-auto"
+              >
+                แพลตฟอร์มแนะนำการท่องเที่ยวเชิงความเชื่อในจังหวัดนครปฐม ที่รวมรวบข้อมูลสถานที่ศักดิ์สิทธิ์และแหล่งท่องเที่ยวสำคัญทั่วจังหวัด โดยใช้ระบบ <span className="text-faith-gold font-medium">Recommendation System</span> มาเป็นผู้ช่วยส่วนตัวในการวิเคราะห์และนำเสนอสถานที่ที่ตรงกับความสนใจของคุณ เพื่อให้ทุกการเดินทางเปี่ยมไปด้วยความหมายและสิริมงคล
+              </motion.p>
+
+              <motion.button
+                whileHover={{ scale: 1.05, boxShadow: "0 0 40px rgba(212, 175, 55, 0.4)" }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setStep('register')}
+                className="bg-faith-gold hover:bg-amber-400 text-[#1A0404] px-12 py-5 rounded-full font-black text-xl shadow-[0_0_20px_rgba(212,175,55,0.2)] transition-all flex items-center gap-3 mb-20 group"
+              >
+                <Sparkles size={24} className="group-hover:rotate-12 transition-transform" />
+                เริ่มต้นเส้นทางศรัทธา
+                <ArrowRight size={24} className="group-hover:translate-x-1 transition-transform" />
+              </motion.button>
+
+              {/* Features Section Removed */}
             </div>
           </motion.div>
         )}
