@@ -13,6 +13,10 @@ from sklearn.metrics.pairwise import cosine_similarity
 user_similarity_matrix = None
 user_item_matrix_global = None
 
+# Password Hashing
+from passlib.context import CryptContext
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Load model on startup
@@ -80,6 +84,12 @@ init_db()
 @app.post("/register")
 def register(user: RegisterUser):
     try:
+        # Password Policy Check
+        if len(user.password) < 8:
+            return {"status": "error", "message": "รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร"}
+        if not user.password[0].isupper():
+            return {"status": "error", "message": "ตัวอักษรแรกของรหัสผ่านต้องเป็นตัวพิมพ์ใหญ่ (A-Z)"}
+
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM users WHERE name = %s", (user.name,))
@@ -87,7 +97,9 @@ def register(user: RegisterUser):
             conn.close()
             return {"status": "error", "message": "ชื่อนี้มีในระบบแล้ว"}
         sql = "INSERT INTO users (name, birth_date, password) VALUES (%s, %s, %s)"
-        cursor.execute(sql, (user.name, user.birth_date, user.password))
+        # Truncate password to 72 bytes before hashing
+        hashed_password = pwd_context.hash(user.password[:72])
+        cursor.execute(sql, (user.name, user.birth_date, hashed_password))
         conn.commit()
         u_id = cursor.lastrowid
         conn.close()
@@ -100,13 +112,15 @@ def login(user: LoginUser):
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT id, name FROM users WHERE name = %s AND password = %s", (user.name, user.password))
+        cursor.execute("SELECT id, name, password FROM users WHERE name = %s", (user.name,))
         row = cursor.fetchone()
         conn.close()
-        if row:
-            return {"status": "success", "user_id": str(row['id']), "name": row['name']}
+        
+        # Verify with truncated password
+        if row and pwd_context.verify(user.password[:72], row['password']):
+             return {"status": "success", "user_id": str(row['id']), "name": row['name']}
         else:
-            return {"status": "error", "message": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"}
+             return {"status": "error", "message": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 

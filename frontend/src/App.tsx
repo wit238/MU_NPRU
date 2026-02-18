@@ -174,6 +174,7 @@ function App() {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [currentBg, setCurrentBg] = useState(0);
   const backgrounds = [workBg, moneyBg, loveBg];
 
@@ -418,7 +419,7 @@ function App() {
                   <div className="relative">
                     <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
                     <input
-                      type="password" required placeholder="รหัสผ่านของคุณ"
+                      type={showPassword ? "text" : "password"} required placeholder="รหัสผ่านของคุณ"
                       className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-14 pr-6 focus:border-faith-gold transition-all outline-none backdrop-blur-xl"
                       value={formData.password}
                       onChange={e => setFormData({ ...formData, password: e.target.value })}
@@ -432,7 +433,7 @@ function App() {
                     <div className="relative">
                       <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
                       <input
-                        type="password" required placeholder="ยืนยันรหัสผ่าน"
+                        type={showPassword ? "text" : "password"} required placeholder="ยืนยันรหัสผ่าน"
                         className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-14 pr-6 focus:border-faith-gold transition-all outline-none backdrop-blur-xl"
                         value={formData.confirmPassword}
                         onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })}
@@ -440,6 +441,13 @@ function App() {
                     </div>
                   </div>
                 )}
+
+                <div className="flex items-center gap-3 px-1 cursor-pointer group" onClick={() => setShowPassword(!showPassword)}>
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${showPassword ? 'bg-faith-gold border-faith-gold' : 'border-white/20'}`}>
+                    {showPassword && <CheckCircle2 size={12} className="text-black" />}
+                  </div>
+                  <span className="text-[10px] text-gray-400 font-bold group-hover:text-white transition-colors uppercase tracking-widest">แสดงรหัสผ่าน</span>
+                </div>
 
                 <div className="flex items-center gap-3 px-1 cursor-pointer group" onClick={() => setRememberMe(!rememberMe)}>
                   <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${rememberMe ? 'bg-faith-gold border-faith-gold' : 'border-white/20'}`}>
