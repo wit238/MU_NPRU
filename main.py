@@ -12,6 +12,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 # Global variables for model
 user_similarity_matrix = None
 user_item_matrix_global = None
+popular_attractions_df = None
 
 # Password Hashing
 from passlib.context import CryptContext
@@ -20,13 +21,19 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Load model on startup
-    global user_similarity_matrix, user_item_matrix_global
+    global user_similarity_matrix, user_item_matrix_global, popular_attractions_df
     try:
         with open("ubcf_model.pkl", "rb") as f:
             data = pickle.load(f)
             user_similarity_matrix = data.get('user_similarity')
             user_item_matrix_global = data.get('user_item_matrix')
         print("Model loaded successfully from ubcf_model.pkl")
+        
+        with open("C:/กาแฟ3ป๋อง/Word/popular_model.pkl", "rb") as f:
+            pop_data = pickle.load(f)
+            popular_attractions_df = pop_data.get('popular_attractions')
+        print("Popular model loaded successfully.")
+
     except Exception as e:
         print(f"Error loading model: {e}")
     yield
@@ -52,13 +59,23 @@ class LoginUser(BaseModel):
     name: str
     password: str
 
+class ActivityLogReq(BaseModel):
+    user_id: int
+    attraction_id: int
+    action_type: str
+
+class ActivityLogReq(BaseModel):
+    user_id: int
+    attraction_id: int
+    action_type: str
+
 def get_db_connection():
     return mysql.connector.connect(
         host="localhost",
         port=3306,
         user="root",
         password="", 
-        database="faith_tourism_db"
+        database="appdb"
     )
 
 # 0. ตรวจสอบและสร้างตาราง Users
@@ -128,6 +145,21 @@ def login(user: LoginUser):
 def home():
     return {"message": "Welcome to Faith Tourism API ⛩️"}
 
+@app.post("/api/activity")
+def log_activity(activity: ActivityLogReq):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        sql = "INSERT INTO activity_log (user_id, attraction_id, action_type) VALUES (%s, %s, %s)"
+        val = (activity.user_id, activity.attraction_id, activity.action_type)
+        cursor.execute(sql, val)
+        conn.commit()
+        conn.close()
+        return {"status": "success", "message": "Activity logged successfully"}
+    except Exception as e:
+        print(f"Log activity error: {e}")
+        return {"status": "error", "message": str(e)}
+
 @app.get("/test-db")
 def test_db():
     try:
@@ -155,7 +187,7 @@ def recommend(user_id: str):
             return {"error": "Recommendation model not loaded."}
 
         conn = get_db_connection()
-        df_places = pd.read_sql("SELECT * FROM attractions", conn)
+        df_places = pd.read_sql("SELECT * FROM attraction", conn)
         conn.close()
 
         if df_places.empty:
@@ -164,6 +196,7 @@ def recommend(user_id: str):
         # Header row removed from DB, so no need to filter
 
         target_user_id = user_id
+        is_new_user = False
         print(f"DEBUG: Request user_id='{user_id}'")
         if target_user_id not in user_item_matrix_global.index:
             potential_ids = [str(idx) for idx in user_item_matrix_global.index if str(user_id).lower() in str(idx).lower()]
@@ -171,20 +204,33 @@ def recommend(user_id: str):
                 target_user_id = potential_ids[0]
                 print(f"DEBUG: Matched to target_user_id='{target_user_id}'")
             else:
-                print(f"DEBUG: User not found: '{user_id}'")
-                return {"error": f"User ID {user_id} not found.", "debug": {"available_samples": list(user_item_matrix_global.index[:5])}}
-
-        similar_users = user_similarity_matrix[target_user_id].sort_values(ascending=False)[1:6]
-        my_visited = user_item_matrix_global.loc[target_user_id][user_item_matrix_global.loc[target_user_id] > 0].index.tolist()
+                print(f"DEBUG: User not found: '{user_id}'. Using popular_model.")
+                is_new_user = True
 
         recommended_scores = {}
-        for sim_user, score in similar_users.items():
-            their_ratings = user_item_matrix_global.loc[sim_user]
-            for place_id, rating in their_ratings.items():
-                if rating > 3 and place_id not in my_visited:
-                    if place_id not in recommended_scores:
-                        recommended_scores[place_id] = 0
-                    recommended_scores[place_id] += rating * score
+        my_visited = []
+        
+        if not is_new_user:
+            similar_users = user_similarity_matrix[target_user_id].sort_values(ascending=False)[1:6]
+            my_visited = user_item_matrix_global.loc[target_user_id][user_item_matrix_global.loc[target_user_id] > 0].index.tolist()
+
+            for sim_user, score in similar_users.items():
+                their_ratings = user_item_matrix_global.loc[sim_user]
+                for place_id, rating in their_ratings.items():
+                    if rating > 3 and place_id not in my_visited:
+                        if place_id not in recommended_scores:
+                            recommended_scores[place_id] = 0
+                        recommended_scores[place_id] += rating * score
+
+        # Always pad with popular items so there are enough recommendations for every category tab
+        if popular_attractions_df is not None:
+            top_popular = popular_attractions_df.sort_values(by=['review_count', 'avg_rating'], ascending=[False, False]).head(150)
+            for _, p_row in top_popular.iterrows():
+                p_id = int(p_row['attraction_id'])
+                if p_id not in recommended_scores and p_id not in my_visited:
+                    # Score padding: slightly lower priority than high-rated personalized
+                    recommended_scores[p_id] = float(p_row['avg_rating'])
+
 
         # Mapping dictionaries
         type_mapping = {
@@ -194,6 +240,11 @@ def recommend(user_id: str):
             "12": "โบราณสถาน"
         }
         category_mapping = {
+            "1": "การงาน",
+            "2": "ความรัก",
+            "3": "การเงิน",
+            "4": "การเงิน",
+            "5": "การงาน",
             "6": "การงาน",
             "7": "การเงิน",
             "8": "ความรัก",
@@ -205,11 +256,11 @@ def recommend(user_id: str):
         # Google Maps API Key (Hardcoded for demo, ideally from env)
         primary_api_key = "AIzaSyCui4h5-VBB9WmGWP6u8M0il3g7iKqJ56E"
         
-        sorted_recs = sorted(recommended_scores.items(), key=lambda x: x[1], reverse=True)[:5]
+        sorted_recs = sorted(recommended_scores.items(), key=lambda x: x[1], reverse=True)[:50]
         results = []
         for place_id, score in sorted_recs:
-            str_place_id = str(place_id)
-            place_info = df_places[df_places['attraction_id'] == str_place_id]
+            # Convert DB ID to int for safe comparison
+            place_info = df_places[df_places['attraction_id'].astype(int) == int(place_id)]
             
             if not place_info.empty:
                 row = place_info.iloc[0]
@@ -271,20 +322,20 @@ def recommend(user_id: str):
                             "https://images.unsplash.com/photo-1563603417646-77869680c2f8?q=80&w=800",
                             "https://images.unsplash.com/photo-1528181304800-259b0884852d?q=80&w=800"
                         ]
-                         img_index = int(str_place_id) % len(fallback_images)
+                         img_index = int(place_id) % len(fallback_images)
                          image_url = fallback_images[img_index]
 
                 results.append({
-                    "id": str_place_id,
+                    "id": str(place_id),
                     "name": place_name,
                     "type": type_name,
                     "category": category_name,
-                    "lat": float(row['latitude']) if ('latitude' in row and row['latitude'] and str(row['latitude']).upper() != 'LAT') else 0.0,
-                    "lng": float(row['longitude']) if ('longitude' in row and row['longitude'] and str(row['longitude']).upper() != 'LONG') else 0.0,
+                    "lat": float(row['lat']) if ('lat' in row and pd.notna(row['lat']) and str(row['lat']).upper() != 'LAT') else 0.0,
+                    "lng": float(row['lng']) if ('lng' in row and pd.notna(row['lng']) and str(row['lng']).upper() != 'LONG') else 0.0,
                     "score": round(score, 2),
                     "image": image_url,
-                    "sacred_object": row['sacred_object'] if 'sacred_object' in row else "-",
-                    "offerings": row['offerings'] if 'offerings' in row else "-"
+                    "sacred_object": row['sacred_obj'] if 'sacred_obj' in row else "-",
+                    "offerings": row['offering'] if 'offering' in row else "-"
                 })
 
         return {"user_id": user_id, "matched_id": target_user_id, "recommendations": results, "message": f"Showing recommendations for User {target_user_id}" if user_id != target_user_id else ""}
