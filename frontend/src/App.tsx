@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { Compass, MapPin, Star, Sparkles, Loader2, Heart, Coins, Briefcase, ArrowRight, User, Calendar, Lock, LogIn, CheckCircle2, X } from 'lucide-react';
+import { Compass, MapPin, Star, Sparkles, Loader2, Heart, ArrowRight, User, Lock, LogIn, CheckCircle2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import workBg from './assets/work_bg.png';
 import moneyBg from './assets/money_bg.png';
@@ -165,10 +165,150 @@ const DivineBackground = ({ currentBgIndex, backgrounds }: { currentBgIndex: num
   );
 };
 
+// --- Star Rating Component ---
+const StarRating = ({ value, onChange }: { value: number; onChange: (v: number) => void }) => {
+  const [hovered, setHovered] = useState(0);
+  return (
+    <div className="flex gap-2">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          onClick={() => onChange(star)}
+          onMouseEnter={() => setHovered(star)}
+          onMouseLeave={() => setHovered(0)}
+          className="transition-transform hover:scale-125 focus:outline-none"
+        >
+          <Star
+            size={32}
+            className={`transition-colors ${star <= (hovered || value)
+              ? 'text-faith-gold fill-faith-gold'
+              : 'text-gray-600'
+              }`}
+          />
+        </button>
+      ))}
+    </div>
+  );
+};
+
+// --- Rating Modal Component ---
+const RatingModal = ({
+  place,
+  userId,
+  onSubmit,
+  onClose,
+}: {
+  place: { id: string; name: string };
+  userId: string;
+  onSubmit: (ratings: { work: number; finance: number; love: number }) => void;
+  onClose: () => void;
+}) => {
+  const [work, setWork] = useState(0);
+  const [finance, setFinance] = useState(0);
+  const [love, setLove] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+
+  // At least 1 category must be rated to submit (all are optional individually)
+  const hasAny = work > 0 || finance > 0 || love > 0;
+
+  const handleSubmit = async () => {
+    if (!hasAny) return;
+    setSubmitting(true);
+    try {
+      await axios.post('http://127.0.0.1:8001/api/rating', {
+        user_id: Number(userId),
+        attraction_id: Number(place.id),
+        work,
+        finance,
+        love,
+      });
+    } catch (e) {
+      console.error('Rating save failed:', e);
+    } finally {
+      setSubmitting(false);
+      onSubmit({ work, finance, love });
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.85, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.85, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+        className="bg-[#1A0404] border border-faith-gold/40 rounded-[2rem] w-full max-w-md p-8 relative shadow-2xl shadow-black/60"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 bg-black/40 rounded-full text-gray-400 hover:text-white transition-colors"
+        >
+          <X size={20} />
+        </button>
+
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-faith-gold/20 border border-faith-gold/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Star className="text-faith-gold fill-faith-gold" size={32} />
+          </div>
+          <h3 className="text-2xl font-black text-white gold-gradient-text mb-1">ให้คะแนนสถานที่</h3>
+          <p className="text-gray-400 text-sm">{place.name}</p>
+          <p className="text-gray-500 text-xs mt-2">ให้คะแนนในหมวดที่ต้องการ (ไม่บังคับทุกหมวด)</p>
+        </div>
+
+        {/* Rating Rows */}
+        <div className="space-y-6 mb-8">
+          {([
+            { label: 'การงาน', icon: '💼', value: work, onChange: setWork },
+            { label: 'การเงิน', icon: '💰', value: finance, onChange: setFinance },
+            { label: 'ความรัก', icon: '❤️', value: love, onChange: setLove },
+          ] as const).map(({ label, icon, value, onChange }) => (
+            <div key={label} className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2 w-24 shrink-0">
+                <span className="text-xl">{icon}</span>
+                <span className="text-sm font-bold text-white">{label}</span>
+              </div>
+              <StarRating value={value} onChange={onChange} />
+            </div>
+          ))}
+        </div>
+
+        {/* Submit Button */}
+        <motion.button
+          whileHover={hasAny ? { scale: 1.02 } : {}}
+          whileTap={hasAny ? { scale: 0.98 } : {}}
+          onClick={handleSubmit}
+          disabled={!hasAny || submitting}
+          className={`w-full py-4 rounded-2xl font-black text-lg transition-all flex items-center justify-center gap-2 ${hasAny
+            ? 'bg-faith-gold text-[#1A0404] shadow-lg shadow-amber-700/30 hover:bg-amber-400'
+            : 'bg-white/10 text-gray-500 cursor-not-allowed'
+            }`}
+        >
+          {submitting ? <Loader2 className="animate-spin" size={22} /> : <><Star size={20} />ส่งคะแนน</>}
+        </motion.button>
+        <button
+          onClick={onClose}
+          className="w-full mt-3 py-3 rounded-2xl text-gray-500 hover:text-gray-300 text-sm font-bold transition-colors"
+        >
+          ข้ามขั้นตอนนี้
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+};
+
 function App() {
   const [step, setStep] = useState<Step>('selection');
   // const [selectedInterests, setSelectedInterests] = useState<string[]>([]); // Removed selection logic
-  const [selectedInterests] = useState<string[]>([]); // Keep empty array for compatibility with results page
   const [userId, setUserId] = useState('');
   const [userName, setUserName] = useState('');
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
@@ -181,10 +321,14 @@ function App() {
   const [activeCategory, setActiveCategory] = useState<string>('LOVE');
   const [rememberMe, setRememberMe] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<Recommendation | null>(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  // ratingTargetPlace: the place the user went to see on Google Maps
+  const [ratingTargetPlace, setRatingTargetPlace] = useState<Recommendation | null>(null);
+  // awaitingReturn: true while user is in Google Maps tab
+  const [awaitingReturn, setAwaitingReturn] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
-    birthDate: '',
     password: '',
     confirmPassword: ''
   });
@@ -197,14 +341,24 @@ function App() {
       setUserName(savedName);
       setFormData(prev => ({ ...prev, name: savedName }));
       setRememberMe(true);
+      // Auto-restore the results page without re-login
+      fetchRecommendations(savedId);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const interests = [
-    { id: 'work', label: 'การงาน', sub: 'ความก้าวหน้า เลื่อนตำแหน่ง สอบติด', icon: <Briefcase size={28} />, bg: workBg },
-    { id: 'finance', label: 'การเงิน', sub: 'โชคลาภ ค้าขาย ร่ำรวย', icon: <Coins size={28} />, bg: moneyBg },
-    { id: 'love', label: 'ความรัก', sub: 'คู่ครอง ครอบครัว มิตรภาพ', icon: <Heart size={28} />, bg: loveBg }
-  ];
+  // Detect when user returns to the tab after opening Google Maps
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && awaitingReturn) {
+        setAwaitingReturn(false);
+        setShowRatingModal(true);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [awaitingReturn]);
+
 
   const fetchRecommendations = async (id: string) => {
     setLoading(true);
@@ -214,12 +368,16 @@ function App() {
       if (response.data.error) {
         setError(response.data.error);
         setRecommendations([]);
+        setStep('results'); // still go to results page to show error with retry
       } else {
         setRecommendations(response.data.recommendations);
         setStep('results');
       }
-    } catch {
-      setError('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ AI ได้');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[fetchRecommendations] Error:', err);
+      setError(`ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ AI ได้ (${msg})`);
+      setStep('results');
     } finally {
       setLoading(false);
     }
@@ -258,14 +416,6 @@ function App() {
     }
   };
 
-  const logActivity = (attractionId: string, actionType: string) => {
-    if (!userId || isNaN(Number(userId))) return;
-    axios.post('http://127.0.0.1:8000/api/activity', {
-      user_id: Number(userId),
-      attraction_id: Number(attractionId),
-      action_type: actionType
-    }).catch(err => console.error("Failed to log activity:", err));
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -403,20 +553,6 @@ function App() {
                   </div>
                 </div>
 
-                {step === 'register' && (
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-faith-gold/70 uppercase tracking-[.25em] pl-1">วันเกิด</label>
-                    <div className="relative">
-                      <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                      <input
-                        type="date" required
-                        className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-14 pr-6 focus:border-faith-gold transition-all outline-none dark:[color-scheme:dark]"
-                        value={formData.birthDate}
-                        onChange={e => setFormData({ ...formData, birthDate: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                )}
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-faith-gold/70 uppercase tracking-[.25em] pl-1">รหัสผ่าน</label>
@@ -570,8 +706,31 @@ function App() {
                 </div>
               </div>
 
+              {/* Error State with Retry */}
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                  className="flex flex-col items-center justify-center py-24 text-center"
+                >
+                  <div className="w-20 h-20 bg-red-950/50 rounded-full flex items-center justify-center mb-6 border border-red-800/50">
+                    <span className="text-4xl">⚠️</span>
+                  </div>
+                  <h3 className="text-2xl font-black text-white mb-3">ไม่สามารถโหลดคำแนะนำได้</h3>
+                  <p className="text-gray-400 text-sm max-w-md mb-8 leading-relaxed">{error}</p>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                    onClick={() => fetchRecommendations(userId)}
+                    disabled={loading}
+                    className="bg-faith-gold hover:bg-amber-400 text-[#1A0404] px-10 py-4 rounded-full font-black text-base shadow-lg flex items-center gap-2"
+                  >
+                    {loading ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />}
+                    ลองใหม่อีกครั้ง
+                  </motion.button>
+                </motion.div>
+              )}
+
               {/* Grid 3 top, 2 bottom centered */}
-              <div className="flex flex-wrap justify-center gap-6">
+              {!error && <div className="flex flex-wrap justify-center gap-6">
                 {recommendations
                   .filter(item => {
                     const mapping: Record<string, string> = { 'WEALTH': 'การเงิน', 'LOVE': 'ความรัก', 'CAREER': 'การงาน' };
@@ -620,7 +779,7 @@ function App() {
                       </div>
                     </motion.div>
                   ))}
-              </div>
+              </div>}
             </main>
 
             {/* Footer matching wireframe */}
@@ -753,16 +912,21 @@ function App() {
                   <Map recommendations={[selectedPlace]} className="h-full" />
                 </div>
 
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${selectedPlace.lat},${selectedPlace.lng}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => logActivity(selectedPlace.id, 'view_map')}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${selectedPlace.lat},${selectedPlace.lng}`;
+                    // Save which place the user visited so we can show the rating modal on return
+                    setRatingTargetPlace(selectedPlace);
+                    setAwaitingReturn(true);
+                    window.open(mapUrl, '_blank', 'noopener,noreferrer');
+                  }}
                   className="flex items-center justify-center gap-2 w-full py-4 bg-faith-gold text-[#1A0404] font-black rounded-xl hover:bg-amber-400 transition-colors"
                 >
                   <MapPin size={20} />
                   <span>เปิดในแผนที่ GOOGLE MAPS</span>
-                </a>
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>
@@ -773,6 +937,21 @@ function App() {
       <footer className="py-12 text-center text-[10px] font-black tracking-[0.6em] text-gray-700 uppercase relative z-10 pointer-events-none">
         © 2026 Nakornpathom Faith Experience • AI Recommendation System
       </footer>
+
+      {/* Rating Modal — shows after user returns from Google Maps */}
+      <AnimatePresence>
+        {showRatingModal && ratingTargetPlace && (
+          <RatingModal
+            place={{ id: ratingTargetPlace.id, name: ratingTargetPlace.name }}
+            userId={userId}
+            onClose={() => setShowRatingModal(false)}
+            onSubmit={() => {
+              setShowRatingModal(false);
+              setRatingTargetPlace(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
