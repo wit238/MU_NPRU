@@ -89,7 +89,8 @@ def init_db():
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
-                password VARCHAR(255) NOT NULL
+                password VARCHAR(255) NOT NULL,
+                role VARCHAR(50) DEFAULT 'user'
             )
         """)
         conn.commit()
@@ -114,14 +115,14 @@ def register(user: RegisterUser):
         if cursor.fetchone():
             conn.close()
             return {"status": "error", "message": "ชื่อนี้มีในระบบแล้ว"}
-        sql = "INSERT INTO users (name, password) VALUES (%s, %s)"
+        sql = "INSERT INTO users (name, password, role) VALUES (%s, %s, %s)"
         # Truncate password to 72 bytes before hashing
         hashed_password = pwd_context.hash(str(user.password)[:72])  # type: ignore[index]
-        cursor.execute(sql, (user.name, hashed_password))
+        cursor.execute(sql, (user.name, hashed_password, 'user'))
         conn.commit()
         u_id = cursor.lastrowid
         conn.close()
-        return {"status": "success", "user_id": str(u_id), "name": user.name}
+        return {"status": "success", "user_id": str(u_id), "name": user.name, "role": "user"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -130,13 +131,14 @@ def login(user: LoginUser):
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT id, name, password FROM users WHERE name = %s", (user.name,))
+        cursor.execute("SELECT id, name, password, role FROM users WHERE name = %s", (user.name,))
         row = cursor.fetchone()
         conn.close()
         
         # Verify with truncated password
         if row and pwd_context.verify(str(user.password)[:72], row['password']):  # type: ignore[index]
-             return {"status": "success", "user_id": str(row['id']), "name": row['name']}
+             role = row.get('role') or 'user'
+             return {"status": "success", "user_id": str(row['id']), "name": row['name'], "role": role}
         else:
              return {"status": "error", "message": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"}
     except Exception as e:
