@@ -56,11 +56,11 @@ app.add_middleware(
 
 # Models
 class RegisterUser(BaseModel):
-    name: str
+    user_name: str
     password: str
 
 class LoginUser(BaseModel):
-    name: str
+    user_name: str
     password: str
 
 class RatingReq(BaseModel):
@@ -87,8 +87,8 @@ def init_db():
         cursor = conn.cursor()
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
+                user_id INT AUTO_INCREMENT PRIMARY KEY,
+                user_name VARCHAR(255) NOT NULL,
                 password VARCHAR(255) NOT NULL,
                 role VARCHAR(50) DEFAULT 'user'
             )
@@ -111,18 +111,18 @@ def register(user: RegisterUser):
 
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id FROM users WHERE name = %s", (user.name,))
+        cursor.execute("SELECT user_id FROM users WHERE user_name = %s", (user.user_name,))
         if cursor.fetchone():
             conn.close()
             return {"status": "error", "message": "ชื่อนี้มีในระบบแล้ว"}
-        sql = "INSERT INTO users (name, password, role) VALUES (%s, %s, %s)"
+        sql = "INSERT INTO users (user_name, password, role) VALUES (%s, %s, %s)"
         # Truncate password to 72 bytes before hashing
         hashed_password = pwd_context.hash(str(user.password)[:72])  # type: ignore[index]
-        cursor.execute(sql, (user.name, hashed_password, 'user'))
+        cursor.execute(sql, (user.user_name, hashed_password, 'user'))
         conn.commit()
         u_id = cursor.lastrowid
         conn.close()
-        return {"status": "success", "user_id": str(u_id), "name": user.name, "role": "user"}
+        return {"status": "success", "user_id": str(u_id), "user_name": user.user_name, "role": "user"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -131,14 +131,14 @@ def login(user: LoginUser):
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT id, name, password, role FROM users WHERE name = %s", (user.name,))
+        cursor.execute("SELECT user_id, user_name, password, role FROM users WHERE user_name = %s", (user.user_name,))
         row = cursor.fetchone()
         conn.close()
         
         # Verify with truncated password
         if row and pwd_context.verify(str(user.password)[:72], row['password']):  # type: ignore[index]
              role = row.get('role') or 'user'
-             return {"status": "success", "user_id": str(row['id']), "name": row['name'], "role": role}
+             return {"status": "success", "user_id": str(row['user_id']), "user_name": row['user_name'], "role": role}
         else:
              return {"status": "error", "message": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"}
     except Exception as e:
