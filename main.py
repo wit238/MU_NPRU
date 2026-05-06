@@ -1,4 +1,5 @@
 # main.py
+import os
 import pickle
 import traceback
 import math
@@ -6,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+# Trigger reload
 from pydantic import BaseModel
 import pandas as pd
 import numpy as np
@@ -20,8 +22,13 @@ models = {
 }
 
 # Password Hashing
-from passlib.context import CryptContext
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode('utf-8')[:72], bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(plain_password.encode('utf-8')[:72], hashed_password.encode('utf-8'))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -40,15 +47,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# CORS
+# CORS — รับ origins เพิ่มจาก ENV สำหรับ Production
+_extra_origins = os.environ.get("CORS_ORIGINS", "")
+_allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+if _extra_origins:
+    _allowed_origins += [o.strip() for o in _extra_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,6 +70,8 @@ app.add_middleware(
 class RegisterUser(BaseModel):
     user_name: str
     password: str
+    age: int
+    gender: str
 
 class LoginUser(BaseModel):
     user_name: str
@@ -70,15 +84,52 @@ class RatingReq(BaseModel):
     finance: int    # 1-5
     love: int       # 1-5
 
+class UpdateNameReq(BaseModel):
+    new_name: str
 
-def get_db_connection():
-    return mysql.connector.connect(
-        host="localhost",
-        port=3306,
-        user="root",
-        password="", 
-        database="appdb"
-    )
+class UpdatePasswordReq(BaseModel):
+    old_password: str
+    new_password: str
+
+class UpdateImageReq(BaseModel):
+    image_base64: str
+
+class ActivityLogReq(BaseModel):
+    user_id: int
+    attraction_id: int
+    attraction_name: str = ""
+    lat: float = 0.0
+    lng: float = 0.0
+    action: str = "view"  # 'view' หรือ 'maps_open'
+
+
+def get_db_connection(retries=3):
+    """Get a fresh DB connection with auto-reconnect on failure."""
+    last_err = None
+    for attempt in range(retries):
+        try:
+            conn = mysql.connector.connect(
+                host=os.environ.get("DB_HOST", "localhost"),
+                port=int(os.environ.get("DB_PORT", "3306")),
+                user=os.environ.get("DB_USER", "root"),
+                password=os.environ.get("DB_PASSWORD", ""),
+                database=os.environ.get("DB_NAME", "appdb"),
+                connection_timeout=10,
+                use_pure=True,
+                raise_on_warnings=False,
+                autocommit=False,
+                charset='utf8mb4',
+                collation='utf8mb4_unicode_ci'
+            )
+            # Ensure connection is alive
+            conn.ping(reconnect=True, attempts=3, delay=1)
+            return conn
+        except Exception as e:
+            last_err = e
+            print(f"DB connection attempt {attempt + 1} failed: {e}")
+            import time
+            time.sleep(0.5)
+    raise Exception(f"Cannot connect to MySQL after {retries} attempts: {last_err}")
 
 # 0. ตรวจสอบและสร้างตาราง Users
 def init_db():
@@ -90,9 +141,59 @@ def init_db():
                 user_id INT AUTO_INCREMENT PRIMARY KEY,
                 user_name VARCHAR(255) NOT NULL,
                 password VARCHAR(255) NOT NULL,
-                role VARCHAR(50) DEFAULT 'user'
+                role VARCHAR(50) DEFAULT 'user',
+                profile_image MEDIUMTEXT DEFAULT NULL,
+                age INT DEFAULT NULL,
+                gender VARCHAR(50) DEFAULT NULL
             )
         """)
+        # Add profile_image column if it doesn't exist (for existing tables)
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN profile_image MEDIUMTEXT DEFAULT NULL")
+        except Exception:
+            pass  # Column already exists
+        # Add age and gender columns if they don't exist
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN age INT DEFAULT NULL")
+            cursor.execute("ALTER TABLE users ADD COLUMN gender VARCHAR(50) DEFAULT NULL")
+        except Exception:
+            pass
+        # สร้างตาราง activity_log สำหรับบันทึก log การดูสถานที่/เปิดแผนที่
+        # ตรวจสอบและสร้างตาราง activity_log (ปรับให้ตรงกับโครงสร้างที่ต้องการใช้งาน)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS activity_log (
+                log_id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                attraction_id INT NOT NULL,
+                attraction_name VARCHAR(255) DEFAULT '',
+                lat DOUBLE DEFAULT 0,
+                lng DOUBLE DEFAULT 0,
+                action_type VARCHAR(50) DEFAULT 'view',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # ตรวจสอบและเพิ่มคอลัมน์ที่ขาดหายไป (กรณีตารางมีอยู่แล้วแต่โครงสร้างไม่ครบ)
+        columns_to_add = {
+            "attraction_name": "VARCHAR(255) DEFAULT ''",
+            "lat": "DOUBLE DEFAULT 0",
+            "lng": "DOUBLE DEFAULT 0",
+            "action_type": "VARCHAR(50) DEFAULT 'view'"
+        }
+        
+        cursor.execute("SHOW COLUMNS FROM activity_log")
+        existing_columns = [col[0] for col in cursor.fetchall()]
+        
+        for col_name, col_def in columns_to_add.items():
+            if col_name not in existing_columns:
+                try:
+                    cursor.execute(f"ALTER TABLE activity_log ADD COLUMN {col_name} {col_def}")
+                except Exception as e:
+                    print(f"Note: Could not add column {col_name}: {e}")
+        
+        # กรณีคอลัมน์ชื่อ 'action' (จากโค้ดเดิม) แต่ใน DB เป็น 'action_type'
+        # เราจะใช้ 'action_type' เป็นหลักตามโครงสร้าง DB จริง
+        
         conn.commit()
         conn.close()
     except Exception as e:
@@ -115,10 +216,10 @@ def register(user: RegisterUser):
         if cursor.fetchone():
             conn.close()
             return {"status": "error", "message": "ชื่อนี้มีในระบบแล้ว"}
-        sql = "INSERT INTO users (user_name, password, role) VALUES (%s, %s, %s)"
-        # Truncate password to 72 bytes before hashing
-        hashed_password = pwd_context.hash(str(user.password)[:72])  # type: ignore[index]
-        cursor.execute(sql, (user.user_name, hashed_password, 'user'))
+        sql = "INSERT INTO users (user_name, password, role, age, gender) VALUES (%s, %s, %s, %s, %s)"
+        # Hash password
+        hashed_password = hash_password(user.password)
+        cursor.execute(sql, (user.user_name, hashed_password, 'user', user.age, user.gender))
         conn.commit()
         u_id = cursor.lastrowid
         conn.close()
@@ -131,14 +232,14 @@ def login(user: LoginUser):
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT user_id, user_name, password, role FROM users WHERE user_name = %s", (user.user_name,))
+        cursor.execute("SELECT user_id, user_name, password, role, profile_image FROM users WHERE user_name = %s", (user.user_name,))
         row = cursor.fetchone()
         conn.close()
         
-        # Verify with truncated password
-        if row and pwd_context.verify(str(user.password)[:72], row['password']):  # type: ignore[index]
+        # Verify password
+        if row and verify_password(user.password, row['password']):
              role = row.get('role') or 'user'
-             return {"status": "success", "user_id": str(row['user_id']), "user_name": row['user_name'], "role": role}
+             return {"status": "success", "user_id": str(row['user_id']), "user_name": row['user_name'], "role": role, "profile_image": row.get('profile_image') or ""}
         else:
              return {"status": "error", "message": "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"}
     except Exception as e:
@@ -149,6 +250,40 @@ def home():
     return {"message": "Welcome to Faith Tourism API ⛩️"}
 
 # Activity Logging disabled (Constant Model approach)
+
+# Helper function to recalculate model
+def recalculate_model_in_memory(category: str, conn):
+    global models
+    
+    # Read ratings for this category from the 'ratings' table
+    query = f"SELECT user_id, attraction_id, {category} FROM ratings WHERE {category} > 0"
+    df_cat = pd.read_sql(query, conn)
+    
+    if df_cat.empty:
+        return # Skip if no ratings yet
+        
+    # Create User-Item Matrix
+    matrix = df_cat.pivot_table(index='user_id', columns='attraction_id', values=category, fill_value=0)
+    
+    # Calculate Cosine Similarity
+    user_sim = cosine_similarity(matrix)
+    user_sim_df = pd.DataFrame(user_sim, index=matrix.index, columns=matrix.index)
+    
+    # Update in-memory models
+    models[category]['user_similarity'] = user_sim_df
+    models[category]['user_item_matrix'] = matrix
+    
+    print(f"DEBUG: Real-time update {category} model (Users: {len(matrix.index)}, Items: {len(matrix.columns)})")
+    
+    # Optional: Save back to .pkl file async (not required for immediate effect)
+    try:
+        import threading
+        def save_pkl():
+            with open(f"recommendation_model_{category}.pkl", "wb") as f:
+                pickle.dump({'user_similarity_df': user_sim_df, 'user_item_matrix': matrix}, f)
+        threading.Thread(target=save_pkl).start()
+    except Exception as e:
+        print(f"Warning: could not save pkl async: {e}")
 
 @app.post("/api/rating")
 def submit_rating(req: RatingReq):
@@ -172,10 +307,144 @@ def submit_rating(req: RatingReq):
             (req.user_id, req.attraction_id, req.work, req.finance, req.love)
         )
         conn.commit()
+        
+        # Trigger real-time model recalculation for affected categories
+        if req.work > 0: recalculate_model_in_memory('work', conn)
+        if req.finance > 0: recalculate_model_in_memory('finance', conn)
+        if req.love > 0: recalculate_model_in_memory('love', conn)
+        
         conn.close()
-        return {"status": "success", "message": "Rating saved"}
+        return {"status": "success", "message": "Rating saved and model updated"}
     except Exception as e:
         print(f"Rating error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/user/{user_id}/ratings")
+def get_user_ratings(user_id: int):
+    """Get all ratings submitted by a specific user, including attraction details."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT 
+                r.id,
+                r.attraction_id,
+                a.attraction_name,
+                a.attraction_image,
+                r.work,
+                r.finance,
+                r.love,
+                r.created_at
+            FROM ratings r
+            JOIN attraction a ON r.attraction_id = a.attraction_id
+            WHERE r.user_id = %s
+            ORDER BY r.created_at DESC
+        """, (user_id,))
+        rows = cursor.fetchall()
+        conn.close()
+
+        result = []
+        for row in rows:
+            result.append({
+                "id": row["id"],
+                "attraction_id": row["attraction_id"],
+                "attraction_name": row["attraction_name"] or "",
+                "attraction_image": row["attraction_image"] or "",
+                "work": row["work"],
+                "finance": row["finance"],
+                "love": row["love"],
+                "created_at": str(row["created_at"]) if row["created_at"] else ""
+            })
+        return {"status": "success", "ratings": result}
+    except Exception as e:
+        print(f"Get ratings error: {e}")
+        return {"status": "error", "message": str(e), "ratings": []}
+
+
+def get_profile_image(user_id: int):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT profile_image FROM users WHERE user_id = %s", (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if not row:
+            return {"profile_image": ""}
+        return {"profile_image": row.get("profile_image") or ""}
+    except Exception as e:
+        return {"profile_image": "", "error": str(e)}
+
+@app.put("/user/{user_id}/image")
+def update_profile_image(user_id: int, req: UpdateImageReq):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET profile_image = %s WHERE user_id = %s", (req.image_base64, user_id))
+        conn.commit()
+        conn.close()
+        return {"status": "success", "message": "บันทึกรูปโปรไฟล์แล้ว"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.put("/user/{user_id}/name")
+def update_username(user_id: int, req: UpdateNameReq):
+    try:
+        if not req.new_name or len(req.new_name.strip()) < 2:
+            return {"status": "error", "message": "ชื่อผู้ใช้ต้องมีความยาวอย่างน้อย 2 ตัวอักษร"}
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM users WHERE user_name = %s AND user_id != %s", (req.new_name.strip(), user_id))
+        if cursor.fetchone():
+            conn.close()
+            return {"status": "error", "message": "ชื่อนี้มีในระบบแล้ว"}
+        cursor.execute("UPDATE users SET user_name = %s WHERE user_id = %s", (req.new_name.strip(), user_id))
+        conn.commit()
+        conn.close()
+        return {"status": "success", "user_name": req.new_name.strip()}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.put("/user/{user_id}/password")
+def update_password(user_id: int, req: UpdatePasswordReq):
+    try:
+        if len(req.new_password) < 8:
+            return {"status": "error", "message": "รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 8 ตัวอักษร"}
+        if not req.new_password[0].isupper():
+            return {"status": "error", "message": "ตัวอักษรแรกของรหัสผ่านใหม่ต้องเป็นตัวพิมพ์ใหญ่ (A-Z)"}
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT password FROM users WHERE user_id = %s", (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return {"status": "error", "message": "ไม่พบผู้ใช้"}
+        if not verify_password(req.old_password, row['password']):
+            conn.close()
+            return {"status": "error", "message": "รหัสผ่านเดิมไม่ถูกต้อง"}
+        new_hashed = hash_password(req.new_password)
+        cursor.execute("UPDATE users SET password = %s WHERE user_id = %s", (new_hashed, user_id))
+        conn.commit()
+        conn.close()
+        return {"status": "success", "message": "เปลี่ยนรหัสผ่านสำเร็จ"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/activity-log")
+def log_activity(req: ActivityLogReq):
+    """บันทึก log การดูสถานที่และการเปิด Google Maps ของผู้ใช้"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # ใช้ action_type ให้ตรงกับโครงสร้างฐานข้อมูล
+        cursor.execute(
+            "INSERT INTO activity_log (user_id, attraction_id, attraction_name, lat, lng, action_type) VALUES (%s, %s, %s, %s, %s, %s)",
+            (req.user_id, req.attraction_id, req.attraction_name, req.lat, req.lng, req.action)
+        )
+        conn.commit()
+        conn.close()
+        return {"status": "success"}
+    except Exception as e:
+        print(f"Activity log error: {e}")
         return {"status": "error", "message": str(e)}
 
 @app.get("/test-db")
@@ -183,6 +452,9 @@ def test_db():
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT DATABASE()")
+        db_name = cursor.fetchone()["DATABASE()"]
+        
         cursor.execute("SHOW TABLES")
         tables = cursor.fetchall()
         schema_info = {}
@@ -192,7 +464,7 @@ def test_db():
             columns = cursor.fetchall()
             schema_info[table_name] = [col['Field'] for col in columns]
         conn.close()
-        return {"status": "Connected Successfully! ", "database": "faith_tourism_db", "tables_found": list(schema_info.keys()), "schema_details": schema_info}
+        return {"status": "Connected Successfully! ", "database": db_name, "tables_found": list(schema_info.keys()), "schema_details": schema_info}
     except Exception as e:
         return {"status": "Connection Failed", "error": str(e)}
 
@@ -303,12 +575,19 @@ def recommend(user_id: str):
         # Sort globally by score desc, limit to 150
         all_results_entries.sort(key=lambda x: x[0], reverse=True)
 
+        # Normalize scores to be max 5.0
+        max_possible_score = max((score for score, _, _ in all_results_entries), default=1.0)
+        if max_possible_score == 0:
+            max_possible_score = 1.0
+
         # Build recommended_scores dict for result building
         recommended_scores = {}
-        for score, place_id, cat_label in list(all_results_entries)[:150]:  # type: ignore[misc]
+        for score, place_id, cat_label in list(all_results_entries)[:150]:
+            # Scale to 5.0 maximum
+            normalized_score = (score / max_possible_score) * 5.0
             rec_key = f"{place_id}_{cat_label}"
             if rec_key not in recommended_scores:
-                recommended_scores[rec_key] = {'place_id': place_id, 'score': score, 'category': cat_label}
+                recommended_scores[rec_key] = {'place_id': place_id, 'score': normalized_score, 'category': cat_label}
 
         # Mapping dictionaries
         type_mapping = {

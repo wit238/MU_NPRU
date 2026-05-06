@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>แบบประเมินความพึงพอใจการใช้งานระบบ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --secondary: #ec4899;
+      --bg-gradient: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+      --card-bg: rgba(255, 255, 255, 0.95);
+      --text-main: #1f2937;
+      --text-light: #6b7280;
+    }
+    body {
+      font-family: 'Prompt', sans-serif;
+      background: transparent;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .wrapper {
+      width: 100%;
+      max-width: 800px;
+    }
+    /* Header & Progress */
+    .header-card {
+      background: var(--card-bg);
+      padding: 30px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .header-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 5px;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+    }
+    .header-card h1 {
+      margin: 0 0 10px 0;
+      font-size: 24px;
+      color: var(--primary);
+    }
+    .progress-container {
+      margin-top: 25px;
+      background: #e5e7eb;
+      border-radius: 10px;
+      height: 8px;
+      width: 100%;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      width: 33.33%;
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .steps-indicator {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--text-light);
+      font-weight: 500;
+    }
+    .steps-indicator span.active {
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* Form Steps */
+    .form-step {
+      display: none;
+      animation: fadeIn 0.5s ease;
+    }
+    .form-step.active {
+      display: block;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateX(20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    
+    .card {
+      background: var(--card-bg);
+      padding: 30px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+    }
+    .section-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 25px;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 2px solid #f3f4f6;
+      padding-bottom: 10px;
+    }
+    
+    /* Questions */
+    .question {
+      margin-bottom: 25px;
+    }
+    .question-title {
+      font-weight: 500;
+      margin-bottom: 15px;
+      font-size: 16px;
+    }
+    
+    /* Radio Cards */
+    .radio-group {
+      display: grid;
+      gap: 12px;
+    }
+    .radio-card {
+      position: relative;
+      display: flex;
+      align-items: center;
+      padding: 15px 20px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: white;
+    }
+    .radio-card:hover {
+      border-color: #a5b4fc;
+      background: #f5f8ff;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+    }
+    .radio-card input[type="radio"] {
+      position: absolute;
+      opacity: 0;
+    }
+    .radio-card input[type="radio"]:checked + .radio-content {
+      color: var(--primary);
+      font-weight: 600;
+    }
+    /* ใช้ CSS :has() สำหรับทำไฮไลท์กล่องที่เลือก (Modern Browser) */
+    .radio-card:has(input[type="radio"]:checked) {
+      border-color: var(--primary);
+      background: #eef2ff;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
+    }
+    .radio-content {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      width: 100%;
+    }
+    .radio-content i {
+      font-size: 20px;
+      color: var(--text-light);
+    }
+    .radio-card:has(input[type="radio"]:checked) .radio-content i {
+      color: var(--primary);
+    }
+
+    /* Rating Grid Mobile Friendly with Emojis */
+    .rating-container {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .rating-box {
+      flex: 1;
+    }
+    .rating-box input { display: none; }
+    .rating-box label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 15px 5px;
+      background: #f3f4f6;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: 0.3s;
+      border: 2px solid transparent;
+      user-select: none;
+    }
+    .rating-box label .score {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 5px;
+      color: var(--text-main);
+    }
+    .rating-box label .emoji {
+      font-size: 24px;
+      transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      filter: grayscale(100%);
+      opacity: 0.6;
+    }
+    .rating-box:hover label {
+      background: #eef2ff;
+      border-color: #c7d2fe;
+      transform: translateY(-3px);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+    }
+    /* สีตามระดับคะแนน / อารมณ์ (1 ถึง 5) */
+    .rating-box input[value="1"]:checked + label {
+      background: #ef4444; border-color: #ef4444; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+    }
+    .rating-box input[value="2"]:checked + label {
+      background: #f97316; border-color: #f97316; box-shadow: 0 4px 15px rgba(249, 115, 22, 0.3);
+    }
+    .rating-box input[value="3"]:checked + label {
+      background: #eab308; border-color: #eab308; box-shadow: 0 4px 15px rgba(234, 179, 8, 0.3);
+    }
+    .rating-box input[value="4"]:checked + label {
+      background: #84cc16; border-color: #84cc16; box-shadow: 0 4px 15px rgba(132, 204, 22, 0.3);
+    }
+    .rating-box input[value="5"]:checked + label {
+      background: #10b981; border-color: #10b981; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+    }
+    .rating-box input:checked + label .score, 
+    .rating-box input:checked + label .emoji {
+      color: white;
+    }
+    .rating-box input:checked + label .emoji {
+      transform: scale(1.3);
+      filter: grayscale(0%);
+      opacity: 1;
+    }
+
+    /* Inputs */
+    input[type="text"], textarea {
+      width: 100%;
+      padding: 15px;
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 15px;
+      box-sizing: border-box;
+      transition: all 0.3s;
+      background: #f9fafb;
+    }
+    input[type="text"]:hover, textarea:hover {
+      border-color: #c7d2fe;
+      background: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.05);
+    }
+    input[type="text"]:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: white;
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+    }
+
+    /* Buttons */
+    .nav-buttons {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 30px;
+      gap: 15px;
+    }
+    button {
+      padding: 15px 30px;
+      border-radius: 12px;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 16px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .btn-prev {
+      background: white;
+      color: var(--text-main);
+      border: 2px solid #e5e7eb;
+    }
+    .btn-prev:hover {
+      background: #f3f4f6;
+    }
+    .btn-next, .btn-submit {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: white;
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+      flex: 1;
+      justify-content: center;
+    }
+    .btn-next:hover, .btn-submit:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4);
+    }
+
+    /* Error Shake */
+    .error-shake {
+      animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+    }
+    .error-shake .radio-card {
+      border-color: #ef4444 !important;
+    }
+    @keyframes shake {
+      10%, 90% { transform: translate3d(-1px, 0, 0); }
+      20%, 80% { transform: translate3d(2px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+      40%, 60% { transform: translate3d(4px, 0, 0); }
+    }
+    .error-msg {
+      color: #ef4444; font-size: 13px; margin-top: 8px; display: none;
+    }
+
+    /* Loading & Success overlays */
+    .overlay {
+      position: fixed; top:0; left:0; right:0; bottom:0;
+      background: var(--bg-gradient);
+      display: none;
+      flex-direction: column; justify-content: center; align-items: center;
+      z-index: 1000;
+    }
+    .spinner {
+      width: 60px; height: 60px;
+      border: 5px solid rgba(99, 102, 241, 0.2);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    .success-icon {
+      font-size: 100px; color: #10b981; margin-bottom: 20px;
+      animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      filter: drop-shadow(0 10px 20px rgba(16, 185, 129, 0.3));
+    }
+    @keyframes popIn { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+
+    @media (max-width: 600px) {
+      .container { padding: 10px; }
+      .header-card, .card { padding: 20px; }
+      .rating-box label { padding: 10px 2px; }
+      .rating-box label .score { font-size: 16px; }
+      .rating-box label .emoji { font-size: 18px; }
+      .btn-prev span { display: none; } /* ซ่อนคำว่า ย้อนกลับ ในมือถือ โชว์แต่ไอคอน */
+    }
+
+    /* Animated Classy Background */
+    .bg-shapes {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      z-index: -1;
+      overflow: hidden;
+      background: #f8fafc;
+    }
+    .shape {
+      position: absolute;
+      filter: blur(90px);
+      border-radius: 50%;
+      animation: floatBg 20s infinite alternate ease-in-out;
+      opacity: 0.7;
+    }
+    .shape-1 {
+      width: 600px; height: 600px;
+      /* สีม่วงอ่อน หรูหรา */
+      background: linear-gradient(135deg, #c7d2fe, #a5b4fc);
+      top: -150px; left: -100px;
+    }
+    .shape-2 {
+      width: 500px; height: 500px;
+      /* สีชมพูทอง */
+      background: linear-gradient(135deg, #fbcfe8, #f472b6);
+      bottom: -100px; right: -100px;
+      animation-delay: -5s;
+      animation-duration: 25s;
+    }
+    .shape-3 {
+      width: 700px; height: 700px;
+      /* สีฟ้าคราม เบาๆ */
+      background: linear-gradient(135deg, #e0e7ff, #bae6fd);
+      top: 40%; left: 30%;
+      transform: translate(-50%, -50%);
+      animation-delay: -10s;
+      animation-duration: 30s;
+    }
+    @keyframes floatBg {
+      0% { transform: translateY(0) scale(1) translateX(0); }
+      50% { transform: translateY(-50px) scale(1.1) translateX(30px); }
+      100% { transform: translateY(30px) scale(0.9) translateX(-30px); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Animated Classy Background -->
+<div class="bg-shapes">
+  <div class="shape shape-1"></div>
+  <div class="shape shape-2"></div>
+  <div class="shape shape-3"></div>
+</div>
+
+<div class="wrapper" id="formWrapper">
+  <!-- Header -->
+  <div class="header-card">
+    <h1><i class="fa-solid fa-map-location-dot" style="margin-right: 10px;"></i>แบบประเมินความพึงพอใจ</h1>
+    <p style="color: var(--text-light); margin: 0; font-size: 14px;">ระบบแนะนำสถานที่ท่องเที่ยวเชิงความเชื่อ จ.นครปฐม</p>
+    
+    <div class="progress-container">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div class="steps-indicator">
+      <span class="step-text active" id="stepText1">ข้อมูลส่วนตัว</span>
+      <span class="step-text" id="stepText2">แบบประเมิน</span>
+      <span class="step-text" id="stepText3">ข้อเสนอแนะ</span>
+    </div>
+  </div>
+
+  <form id="myForm" onsubmit="submitForm(event)">
+    
+    <!-- ================= STEP 1: ข้อมูลทั่วไป ================= -->
+    <div class="form-step active" id="step1">
+      <div class="card">
+        <div class="section-title"><i class="fa-solid fa-user"></i> ส่วนที่ 1: ข้อมูลทั่วไป</div>
+        
+        <div class="question" id="qContainer_q_gender">
+          <div class="question-title">1. เพศ <span style="color:red">*</span></div>
+          <div class="radio-group">
+            <label class="radio-card">
+              <input type="radio" name="q_gender" value="ชาย" required>
+              <div class="radio-content"><i class="fa-solid fa-mars"></i> ชาย</div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="q_gender" value="หญิง">
+              <div class="radio-content"><i class="fa-solid fa-venus"></i> หญิง</div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="q_gender" value="เพศทางเลือก (LGBTQ+)">
+              <div class="radio-content"><i class="fa-solid fa-mars-and-venus"></i> เพศทางเลือก (LGBTQ+)</div>
+            </label>
+          </div>
+          <div class="error-msg">กรุณาเลือกคำตอบ</div>
+        </div>
+
+        <div class="question" id="qContainer_q_age">
+          <div class="question-title">2. อายุ <span style="color:red">*</span></div>
+          <div class="radio-group" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+            <label class="radio-card"><input type="radio" name="q_age" value="ต่ำกว่า 20 ปี" required><div class="radio-content">ต่ำกว่า 20 ปี</div></label>
+            <label class="radio-card"><input type="radio" name="q_age" value="21-30 ปี"><div class="radio-content">21-30 ปี</div></label>
+            <label class="radio-card"><input type="radio" name="q_age" value="31-40 ปี"><div class="radio-content">31-40 ปี</div></label>
+            <label class="radio-card"><input type="radio" name="q_age" value="41-50 ปี"><div class="radio-content">41-50 ปี</div></label>
+            <label class="radio-card"><input type="radio" name="q_age" value="51-60 ปี"><div class="radio-content">51-60 ปี</div></label>
+            <label class="radio-card"><input type="radio" name="q_age" value="61 ปีขึ้นไป"><div class="radio-content">61 ปีขึ้นไป</div></label>
+          </div>
+          <div class="error-msg">กรุณาเลือกคำตอบ</div>
+        </div>
+
+        <div class="question" id="qContainer_q_occupation">
+          <div class="question-title">3. อาชีพ <span style="color:red">*</span></div>
+          <div class="radio-group">
+            <label class="radio-card"><input type="radio" name="q_occupation" value="นักเรียน / นักศึกษา" required onclick="toggleOther(false)"><div class="radio-content"><i class="fa-solid fa-user-graduate"></i> นักเรียน / นักศึกษา</div></label>
+            <label class="radio-card"><input type="radio" name="q_occupation" value="ข้าราชการ / พนักงานรัฐวิสาหกิจ" onclick="toggleOther(false)"><div class="radio-content"><i class="fa-solid fa-building-user"></i> ข้าราชการ / พนักงานรัฐวิสาหกิจ</div></label>
+            <label class="radio-card"><input type="radio" name="q_occupation" value="พนักงานบริษัทเอกชน" onclick="toggleOther(false)"><div class="radio-content"><i class="fa-solid fa-briefcase"></i> พนักงานบริษัทเอกชน</div></label>
+            <label class="radio-card"><input type="radio" name="q_occupation" value="ธุรกิจส่วนตัว / ค้าขาย / อาชีพอิสระ" onclick="toggleOther(false)"><div class="radio-content"><i class="fa-solid fa-shop"></i> ธุรกิจส่วนตัว / ค้าขาย / อาชีพอิสระ</div></label>
+            <label class="radio-card"><input type="radio" name="q_occupation" value="อื่นๆ" onclick="toggleOther(true)"><div class="radio-content"><i class="fa-solid fa-pen"></i> อื่นๆ (โปรดระบุ)</div></label>
+          </div>
+          <input type="text" id="occupation_other_text" name="q_occupation_other" placeholder="โปรดระบุอาชีพ" class="hidden" style="margin-top: 10px;" disabled>
+          <div class="error-msg">กรุณาเลือกคำตอบ</div>
+        </div>
+
+        <div class="question" id="qContainer_q_visited">
+          <div class="question-title">4. ท่านเคยเดินทางท่องเที่ยวเชิงความเชื่อ ในจังหวัดนครปฐมหรือไม่ <span style="color:red">*</span></div>
+          <div class="radio-group" style="grid-template-columns: 1fr 1fr;">
+            <label class="radio-card"><input type="radio" name="q_visited" value="เคย" required><div class="radio-content" style="justify-content:center"><i class="fa-solid fa-check text-green-500"></i> เคย</div></label>
+            <label class="radio-card"><input type="radio" name="q_visited" value="ไม่เคย"><div class="radio-content" style="justify-content:center"><i class="fa-solid fa-xmark text-red-500"></i> ไม่เคย</div></label>
+          </div>
+          <div class="error-msg">กรุณาเลือกคำตอบ</div>
+        </div>
+
+        <div class="nav-buttons">
+          <div></div> <!-- Empty div for flex spacing -->
+          <button type="button" class="btn-next" onclick="nextStep(1)">ถัดไป <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= STEP 2: ประเมิน ================= -->
+    <div class="form-step" id="step2">
+      <div class="card">
+        <div class="section-title"><i class="fa-solid fa-star"></i> ส่วนที่ 2: แบบประเมินความพึงพอใจ</div>
+        <p style="font-size: 14px; color: var(--text-light); text-align: center; margin-bottom: 30px;">
+          5 = มากที่สุด | 4 = มาก | 3 = ปานกลาง | 2 = น้อย | 1 = น้อยที่สุด
+        </p>
+
+        <div id="surveyQuestions"></div>
+
+        <div class="nav-buttons">
+          <button type="button" class="btn-prev" onclick="prevStep(2)"><i class="fa-solid fa-arrow-left"></i> <span>ย้อนกลับ</span></button>
+          <button type="button" class="btn-next" onclick="nextStep(2)">ถัดไป <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= STEP 3: ข้อเสนอแนะ ================= -->
+    <div class="form-step" id="step3">
+      <div class="card">
+        <div class="section-title"><i class="fa-solid fa-comment-dots"></i> ส่วนที่ 3: ข้อเสนอแนะเพิ่มเติม</div>
+        
+        <div class="question">
+          <div class="question-title">ข้อเสนอแนะเพื่อการพัฒนาระบบในอนาคต (ถ้ามี)</div>
+          <textarea name="q_comments" rows="6" placeholder="พิมพ์ข้อเสนอแนะติชมของคุณที่นี่..."></textarea>
+        </div>
+
+        <div class="nav-buttons">
+          <button type="button" class="btn-prev" onclick="prevStep(3)"><i class="fa-solid fa-arrow-left"></i> <span>ย้อนกลับ</span></button>
+          <button type="submit" class="btn-submit"><i class="fa-regular fa-paper-plane"></i> ยืนยันข้อมูล</button>
+        </div>
+      </div>
+    </div>
+
+  </form>
+</div>
+
+<!-- Overlays -->
+<div class="overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <h2 style="color:var(--text-main);">กำลังบันทึกข้อมูล...</h2>
+</div>
+
+<div class="overlay" id="successOverlay">
+  <div class="card" style="text-align: center; max-width: 500px; margin: 20px; width: 100%; box-sizing: border-box; animation: popIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);">
+    <div class="success-icon" style="margin-top: 10px;">
+      <i class="fa-solid fa-circle-check"></i>
+    </div>
+    <h1 style="color: var(--primary); font-size: 28px; margin-bottom: 15px;">บันทึกข้อมูลสำเร็จ!</h1>
+    <p style="color:var(--text-light); margin-bottom: 40px; font-size: 15px; line-height: 1.6;">
+      ขอขอบพระคุณเป็นอย่างยิ่งที่สละเวลาอันมีค่าในการตอบแบบสอบถาม<br>ข้อมูลของคุณจะเป็นประโยชน์อย่างมากในการพัฒนาระบบ
+    </p>
+    <button type="button" class="btn-submit" style="width:100%; flex: none; padding: 16px;" onclick="location.reload()">
+      ทำแบบสอบถามอีกครั้ง
+    </button>
+  </div>
+</div>
+
+<script>
+  // ฟังก์ชันยิงพลุกระดาษ (Confetti) 
+  function fireConfetti() {
+    var end = Date.now() + 3000;
+    (function frame() {
+      confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#6366f1', '#ec4899', '#10b981', '#fcd34d'], zIndex: 9999 });
+      confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#6366f1', '#ec4899', '#10b981', '#fcd34d'], zIndex: 9999 });
+      if (Date.now() < end) requestAnimationFrame(frame);
+    }());
+  }
+
+  let currentStep = 1;
+
+  // Toggle other input
+  function toggleOther(show) {
+    const input = document.getElementById('occupation_other_text');
+    if(show) {
+      input.classList.remove('hidden');
+      input.disabled = false;
+      input.required = true;
+      input.focus();
+    } else {
+      input.classList.add('hidden');
+      input.disabled = true;
+      input.required = false;
+      input.value = '';
+    }
+  }
+
+  // Generate 10 rating questions with Emojis
+  const emojis = ['😡', '😟', '😐', '🙂', '😍']; // 1 to 5
+  const questions = [
+    "รูปแบบหน้าจอ (UI) ของระบบใช้งานง่าย และไม่ซับซ้อน",
+    "ระบบมีความรวดเร็วในการประมวลผลและแสดงผลข้อมูล",
+    "ข้อมูลสถานที่ท่องเที่ยวเชิงความเชื่อที่แสดงผลในระบบมีความถูกต้อง",
+    "รายละเอียดของสถานที่ท่องเที่ยวมีความครบถ้วนและเป็นปัจจุบัน",
+    "ระบบสามารถแนะนำสถานที่ท่องเที่ยวได้ตรงกับความต้องการและสไตล์ของผู้ใช้งาน",
+    "การออกแบบหน้าจอของระบบมีความสวยงาม ทันสมัย และน่าดึงดูด",
+    "ระบบมีส่วนช่วยสนับสนุนให้การวางแผนเดินทางท่องเที่ยวสะดวกยิ่งขึ้น",
+    "ข้อมูลประวัติและเกร็ดความรู้ด้านความเชื่อ มีความน่าเชื่อถือและเป็นประโยชน์",
+    "ฟังก์ชันการค้นหาสถานที่ในระบบ ใช้งานได้สะดวกและแสดงผลลัพธ์ได้อย่างรวดเร็ว",
+    "ความพึงพอใจโดยรวม"
+  ];
+
+  const surveyDiv = document.getElementById('surveyQuestions');
+  questions.forEach((q, index) => {
+    const qNum = index + 1;
+    let html = `
+      <div class="question" id="qContainer_q${qNum}">
+        <div class="question-title">${qNum}. ${q} <span style="color:red">*</span></div>
+        <div class="rating-container">
+    `;
+    for(let i=1; i<=5; i++){
+      html += `
+        <div class="rating-box">
+          <input type="radio" name="q${qNum}" id="q${qNum}_${i}" value="${i}" required>
+          <label for="q${qNum}_${i}">
+            <span class="score">${i}</span>
+            <span class="emoji">${emojis[i-1]}</span>
+          </label>
+        </div>
+      `;
+    }
+    html += `
+        </div>
+        <div class="error-msg">กรุณาให้คะแนนข้อนี้</div>
+      </div>
+    `;
+    surveyDiv.innerHTML += html;
+  });
+
+  // Multistep Validation and Navigation
+  function validateStep(step) {
+    let isValid = true;
+    const inputs = document.querySelectorAll(`#step${step} input[required]`);
+    
+    // Reset errors
+    document.querySelectorAll('.error-shake').forEach(el => el.classList.remove('error-shake'));
+    document.querySelectorAll('.error-msg').forEach(el => el.style.display = 'none');
+
+    // Group by name for radio buttons
+    const names = new Set();
+    inputs.forEach(input => names.add(input.name));
+
+    names.forEach(name => {
+      const field_inputs = document.querySelectorAll(`input[name="${name}"]`);
+      if(field_inputs[0].type === 'radio') {
+        let checked = false;
+        field_inputs.forEach(r => { if(r.checked) checked = true; });
+        if(!checked) {
+          isValid = false;
+          // Find container and show error
+          const container = document.getElementById(`qContainer_${name}`);
+          if(container) {
+            container.classList.add('error-shake');
+            container.querySelector('.error-msg').style.display = 'block';
+          }
+        }
+      } else {
+        // text input
+        const txt = document.querySelector(`input[name="${name}"]`);
+        if(txt && txt.value.trim() === '') {
+          isValid = false;
+          txt.classList.add('error-shake');
+        }
+      }
+    });
+
+    if(!isValid) {
+      // Scroll to first error
+      const firstError = document.querySelector('.error-shake');
+      if(firstError) {
+        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
+    return isValid;
+  }
+
+  function updateProgress(step) {
+    const bar = document.getElementById('progressBar');
+    bar.style.width = (step * 33.33) + '%';
+    
+    document.querySelectorAll('.step-text').forEach((el, index) => {
+      if(index < step) el.classList.add('active');
+      else el.classList.remove('active');
+    });
+  }
+
+  function nextStep(step) {
+    if(!validateStep(step)) return;
+    
+    document.getElementById(`step${step}`).classList.remove('active');
+    document.getElementById(`step${step+1}`).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    updateProgress(step + 1);
+  }
+
+  function prevStep(step) {
+    document.getElementById(`step${step}`).classList.remove('active');
+    document.getElementById(`step${step-1}`).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    updateProgress(step - 1);
+  }
+
+  // Remove error shake on click/change
+  document.addEventListener('change', function(e) {
+    if(e.target.tagName === 'INPUT') {
+      const container = e.target.closest('.question');
+      if(container) {
+        container.classList.remove('error-shake');
+        const errMsg = container.querySelector('.error-msg');
+        if(errMsg) errMsg.style.display = 'none';
+      }
+    }
+  });
+
+  // Submit Handler
+  function submitForm(e) {
+    e.preventDefault();
+    if(!validateStep(3)) return; // Validate final step just in case
+    
+    document.getElementById('formWrapper').style.display = 'none';
+    const loading = document.getElementById('loadingOverlay');
+    loading.style.display = 'flex';
+
+    const form = document.getElementById('myForm');
+    const formData = new FormData(form);
+    const dataObj = {};
+    formData.forEach((value, key) => { dataObj[key] = value; });
+
+    if(typeof google !== 'undefined' && google.script) {
+      google.script.run
+        .withSuccessHandler(function(response) {
+          loading.style.display = 'none';
+          if(response === 'SUCCESS') {
+            document.getElementById('successOverlay').style.display = 'flex';
+            fireConfetti();
+          } else {
+            alert('เกิดข้อผิดพลาด: ' + response);
+            document.getElementById('formWrapper').style.display = 'block';
+          }
+        })
+        .saveData(dataObj);
+    } else {
+      setTimeout(() => {
+        loading.style.display = 'none';
+        document.getElementById('successOverlay').style.display = 'flex';
+        fireConfetti();
+      }, 1500);
+    }
+  }
+</script>
+
+</body>
+</html>

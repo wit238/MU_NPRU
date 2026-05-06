@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+frontend/
+scratch/
+node_modules/
+*.md
+test_*.py
+randomize_*.py
+update_db.py
+test_names.txt
+.pyre_configuration
+google_form_webapp/
